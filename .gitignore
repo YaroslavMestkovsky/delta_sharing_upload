@@ -1,3 +1,6 @@
 .idea
 /postgres.conf
 /Profile.json
+/mindbox.conf
+/php.conf
+/yandex.conf

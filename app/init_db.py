@@ -66,6 +66,73 @@ def init_db():
         """
     )
 
+    cursor.execute(
+        """
+        CREATE TABLE df_stenatnn_customers (
+            id SERIAL PRIMARY KEY,
+            sex TEXT,
+            website_id TEXT,
+            mindbox_id INTEGER,
+            birth_date TIMESTAMP,
+            upload_date TIMESTAMP
+        )
+        """
+    )
+
+    cursor.execute(
+        """
+        CREATE TABLE df_stenatnn_customers_actions (
+            id SERIAL PRIMARY KEY,
+            mindbox_id INTEGER,
+            date_time_utc TIMESTAMP,
+            action_template_name TEXT,
+            channel_name TEXT,
+            customer_id INTEGER REFERENCES df_stenatnn_customers(id),
+            upload_date TIMESTAMP
+        )
+        """
+    )
+
+    cursor.execute(
+        """
+        CREATE TABLE df_php_orders (
+            id SERIAL PRIMARY KEY,
+            php_id INTEGER,
+            status_id TEXT,
+            price INTEGER,
+            created_on TIMESTAMP,
+            canceled TEXT,
+            user_id TEXT,
+            delivery_id TEXT,
+            pay TEXT,
+            type_id TEXT
+        )
+        """
+    )
+
+    cursor.execute(
+        """
+        CREATE TABLE df_yandex_commerce_purchase (
+            id SERIAL PRIMARY KEY,
+            visit_id TEXT,
+            purchase_id TEXT,
+            purchase_revenue TEXT,
+            date_time TIMESTAMP,
+            client_id TEXT,
+            traffic_source TEXT,
+            last_search_engine TEXT,
+            utm_source TEXT,
+            utm_medium TEXT,
+            utm_campaign TEXT,
+            utm_content TEXT,
+            utm_term TEXT,
+            device_category TEXT,
+            referal_source TEXT,
+            goal TEXT
+        )
+        """
+    )
+
     connection.commit()
     connection.close()
 
