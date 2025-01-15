@@ -151,7 +151,7 @@ class DeltaSharingUpload:
             if ending_date > today:
                 end = True
                 chunk = (today - starting_date).days
-                ending_date = starting_date + datetime.timedelta(days=chunk)
+                ending_date = starting_date + datetime.timedelta(days=chunk + 1)
 
             export_id = self._get_export_id(url, headers, starting_date, ending_date)
 
