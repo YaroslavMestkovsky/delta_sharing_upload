@@ -430,6 +430,8 @@ class DeltaSharingUpload:
 
             self._flush_df_to_db(df, self.yandex_commerce_purchase_bd, unique_field='visit_id', types=types)
 
+        self._message('Ended uploading commerce purchase.')
+
     def _check_customers_ids(self, db_info, period):
         """Проверка наличия полученных клиентов в БД. Если не нашли - создаем."""
 
