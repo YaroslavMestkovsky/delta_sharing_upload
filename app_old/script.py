@@ -481,7 +481,7 @@ class DeltaSharingUpload:
         self.cursor.execute(f"SELECT upload_date FROM {table_name} ORDER BY upload_date DESC LIMIT 1")
         fetch = self.cursor.fetchone()
 
-        return fetch[0] if fetch else datetime.datetime(2024, 1, 1)
+        return fetch[0] if fetch else datetime.datetime(2023, 1, 1)
 
     def _recursive_get_urls(self, func, params, attempt_num=0):
         """Попытки получить сформированные данные."""

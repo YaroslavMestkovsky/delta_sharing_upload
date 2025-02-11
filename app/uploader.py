@@ -13,7 +13,7 @@ class BaseUploader:
 
     def __init__(self, *args, **kwargs):
         logging.basicConfig(
-            filename='../upload.log',
+            # filename='../upload.log', todo
             level=logging.INFO,
             format='%(levelname)s - %(message)s'
         )
@@ -44,6 +44,9 @@ class BaseUploader:
             'first_action_datetime_utc',
             'upload_date',
             'expiration_datetime_utc',
+            'first_dim_upload_date',
+            'second_dim_upload_date',
+            'third_dim_upload_date',
         ]
 
     def _upload(self, *args, **kwargs):
@@ -99,7 +102,7 @@ class BaseUploader:
 
         for date_field in self.date_fields:
             if date_field in df:
-                df.loc[:, date_field] = pd.to_datetime(df[date_field], format='mixed')
+                df.loc[:, date_field] = pd.to_datetime(df[date_field], format='mixed', dayfirst=True)
 
         for col, _type in types.items():
             if col in df:

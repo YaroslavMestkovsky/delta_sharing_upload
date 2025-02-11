@@ -2,7 +2,7 @@
 
 from db_helpers import connect_to_db
 
-
+#todo здесь
 def init_db():
     connection = connect_to_db()
     cursor = connection.cursor()
@@ -96,12 +96,13 @@ def init_db():
     #     )
     #     """
     # )
+
     # cursor.execute(
     #     """
-    #     CREATE TABLE df_yandex_commerce_purchase (
+    #     CREATE TABLE df_yandex_visits (
     #         id SERIAL PRIMARY KEY,
-    #         visit_id TEXT,
     #         purchase_id TEXT,
+    #         visit_id TEXT,
     #         purchase_revenue TEXT,
     #         date_time TIMESTAMP,
     #         client_id TEXT,
@@ -114,11 +115,27 @@ def init_db():
     #         utm_term TEXT,
     #         device_category TEXT,
     #         referal_source TEXT,
-    #         goal TEXT,
-    #         upload_date TIMESTAMP
+    #         first_dim_upload_date TIMESTAMP,
+    #         second_dim_upload_date TIMESTAMP,
+    #         third_dim_upload_date TIMESTAMP,
+    #         UNIQUE (purchase_id, visit_id) -- Спасибо, яндекс.
     #     )
     #     """
     # )
+
+    cursor.execute(
+        """
+        CREATE TABLE df_yandex_goals (
+            id SERIAL PRIMARY KEY,
+            yandex_visit_id INTEGER REFERENCES df_yandex_visits(id),
+            goal TEXT,
+            date_time TiMESTAMP,
+            upload_date TIMESTAMP,
+            UNIQUE (yandex_visit_id, goal)
+        )
+        """
+    )
+
     # cursor.execute(
     #     """
     #     CREATE TABLE df_stenatnn_customers (
