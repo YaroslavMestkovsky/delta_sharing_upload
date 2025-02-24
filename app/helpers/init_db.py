@@ -2,7 +2,7 @@
 
 from db_helpers import connect_to_db
 
-#todo здесь
+
 def init_db():
     connection = connect_to_db()
     cursor = connection.cursor()
@@ -101,10 +101,7 @@ def init_db():
     #     """
     #     CREATE TABLE df_yandex_visits (
     #         id SERIAL PRIMARY KEY,
-    #         purchase_id TEXT,
-    #         visit_id TEXT,
-    #         purchase_revenue TEXT,
-    #         date_time TIMESTAMP,
+    #         visit_id TEXT UNIQUE,
     #         client_id TEXT,
     #         traffic_source TEXT,
     #         last_search_engine TEXT,
@@ -115,26 +112,36 @@ def init_db():
     #         utm_term TEXT,
     #         device_category TEXT,
     #         referal_source TEXT,
-    #         first_dim_upload_date TIMESTAMP,
-    #         second_dim_upload_date TIMESTAMP,
-    #         third_dim_upload_date TIMESTAMP,
-    #         UNIQUE (purchase_id, visit_id) -- Спасибо, яндекс.
+    #         date_time TIMESTAMP,
+    #         upload_date TIMESTAMP
     #     )
     #     """
     # )
 
-    cursor.execute(
-        """
-        CREATE TABLE df_yandex_goals (
-            id SERIAL PRIMARY KEY,
-            yandex_visit_id INTEGER REFERENCES df_yandex_visits(id),
-            goal TEXT,
-            date_time TiMESTAMP,
-            upload_date TIMESTAMP,
-            UNIQUE (yandex_visit_id, goal)
-        )
-        """
-    )
+    # cursor.execute(
+    #     """
+    #     CREATE TABLE df_yandex_purchases (
+    #         id SERIAL PRIMARY KEY,
+    #         purchase_id TEXT,
+    #         yandex_visit_id INTEGER REFERENCES df_yandex_visits(id),
+    #         purchase_revenue TEXT,
+    #         upload_date TIMESTAMP,
+    #         UNIQUE (yandex_visit_id, purchase_id)
+    #     )
+    #     """
+    # )
+    #
+    # cursor.execute(
+    #     """
+    #     CREATE TABLE df_yandex_goals (
+    #         id SERIAL PRIMARY KEY,
+    #         yandex_visit_id INTEGER REFERENCES df_yandex_visits(id),
+    #         goal TEXT,
+    #         upload_date TIMESTAMP,
+    #         UNIQUE (yandex_visit_id, goal)
+    #     )
+    #     """
+    # )
 
     # cursor.execute(
     #     """

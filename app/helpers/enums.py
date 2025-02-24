@@ -44,10 +44,3 @@ PURCHASE_STATUSES_COLUMNS = [
     'starting_version',
     'ending_version',
 ]
-
-YANDEX_UPLOAD_TIME_PARTS = {
-    'ONE': 'first_dim_upload_date',
-    'TWO': 'second_dim_upload_date',
-    'THREE': 'third_dim_upload_date',
-    'FOUR': 'upload_date',
-}

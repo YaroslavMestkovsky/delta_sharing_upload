@@ -70,19 +70,9 @@ PROMOTIONS_MAP = {
     'expiration_datetime_utc': 'expirationDateTimeUtc',
 }
 
-YANDEX_DIMENSIONS_ONE_MAP = {
-    'ym:s:purchaseID': 'purchase_id',
+YANDEX_VISITS_DIMENSIONS_FIRST_MAP = {
     'ym:s:visitID': 'visit_id',
-
     'ym:s:clientID': 'client_id',
-    'ym:s:dateTime': 'date_time',
-    'ym:s:purchaseRevenue': 'purchase_revenue',
-}
-
-YANDEX_DIMENSIONS_TWO_MAP = {
-    'ym:s:purchaseID': 'purchase_id',
-    'ym:s:visitID': 'visit_id',
-
     'ym:s:dateTime': 'date_time',
     'ym:s:TrafficSource': 'traffic_source',
     'ym:s:lastSearchEngine': 'last_search_engine',
@@ -93,23 +83,30 @@ YANDEX_DIMENSIONS_TWO_MAP = {
     'ym:s:UTMTerm': 'utm_term',
 }
 
-YANDEX_DIMENSIONS_THREE_MAP = {
-    'ym:s:purchaseID': 'purchase_id',
+YANDEX_VISITS_DIMENSIONS_SECOND_MAP = {
     'ym:s:visitID': 'visit_id',
-
-    'ym:s:dateTime': 'date_time',
     'ym:s:deviceCategory': 'device_category',
     'ym:s:ReferalSource': 'referal_source',
 }
 
-YANDEX_DIMENSIONS_FOUR_MAP = {
+YANDEX_PURCHASE_DIMENSIONS_MAP = {
     'ym:s:visitID': 'yandex_visit_id',
+    'ym:s:purchaseID': 'purchase_id',
+    'ym:s:purchaseRevenue': 'purchase_revenue',
+}
 
-    'ym:s:dateTime': 'date_time',
+YANDEX_GOALS_DIMENSIONS_MAP = {
+    'ym:s:visitID': 'yandex_visit_id',
     'ym:s:goal': 'goal',
 }
 
 YANDEX_GOALS_TO_VISITS_FIELDS_MAP = {
+    'parent_db': 'df_yandex_visits',
+    'from': 'yandex_visit_id',
+    'to': 'visit_id',
+}
+
+YANDEX_PURCHASES_TO_VISITS_FIELDS_MAP = {
     'parent_db': 'df_yandex_visits',
     'from': 'yandex_visit_id',
     'to': 'visit_id',

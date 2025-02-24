@@ -1,23 +1,31 @@
 import pandas as pd
 import requests
 import datetime
-from collections import defaultdict
-from psycopg2.extras import execute_values
-from helpers.maps import (
-    YANDEX_DIMENSIONS_ONE_MAP,
-    YANDEX_DIMENSIONS_TWO_MAP,
-    YANDEX_DIMENSIONS_THREE_MAP,
-    YANDEX_DIMENSIONS_FOUR_MAP,
-    YANDEX_GOALS_TO_VISITS_FIELDS_MAP,
-)
-from helpers.enums import YANDEX_UPLOAD_TIME_PARTS
-from uploader import BaseUploader
+import calendar
 import configparser
+from uploader import BaseUploader
+from sqlalchemy import (
+    MetaData,
+    Table,
+)
+from sqlalchemy.dialects.postgresql import insert
+from collections import defaultdict
+from helpers.maps import (
+    YANDEX_VISITS_DIMENSIONS_FIRST_MAP,
+    YANDEX_VISITS_DIMENSIONS_SECOND_MAP,
+    YANDEX_PURCHASE_DIMENSIONS_MAP,
+    YANDEX_GOALS_DIMENSIONS_MAP,
+    YANDEX_GOALS_TO_VISITS_FIELDS_MAP,
+    YANDEX_PURCHASES_TO_VISITS_FIELDS_MAP,
+)
 
 
 YANDEX_CONFIG_PATH = 'configs/yandex.conf'
 YANDEX_CONFIG = configparser.ConfigParser()
 YANDEX_CONFIG.read(YANDEX_CONFIG_PATH)
+
+
+pd.set_option('future.no_silent_downcasting', True)
 
 
 class YandexUploader(BaseUploader):
@@ -27,131 +35,177 @@ class YandexUploader(BaseUploader):
         super()._prepare_constants()
 
         self.yandex_visits_bd = 'df_yandex_visits'
+        self.yandex_purchases_bd = 'df_yandex_purchases'
         self.yandex_goals_bd = 'df_yandex_goals'
 
     def run(self):
         self._message('==YANDEX==')
 
-        self._upload_dimensions(
-            dimensions=YANDEX_DIMENSIONS_ONE_MAP,
+        self._upload_visits(
+            dimensions_parts=[
+                YANDEX_VISITS_DIMENSIONS_FIRST_MAP,
+                YANDEX_VISITS_DIMENSIONS_SECOND_MAP,
+            ],
             db_table_name=self.yandex_visits_bd,
-            db_date_field=YANDEX_UPLOAD_TIME_PARTS['ONE'],
+            metrics='ym:s:visits',
+        )
+        self._upload_purchases(
+            dimensions_parts=[
+                YANDEX_PURCHASE_DIMENSIONS_MAP,
+            ],
+            db_table_name=self.yandex_purchases_bd,
             metrics='ym:s:ecommercePurchases',
-            unique_selection='purchase_id, visit_id',
+            fields_map=YANDEX_PURCHASES_TO_VISITS_FIELDS_MAP,
         )
-        self._upload_dimensions(
-            dimensions=YANDEX_DIMENSIONS_TWO_MAP,
-            db_table_name=self.yandex_visits_bd,
-            db_date_field=YANDEX_UPLOAD_TIME_PARTS['TWO'],
-            unique_selection='purchase_id, visit_id',
-        )
-        self._upload_dimensions(
-            dimensions=YANDEX_DIMENSIONS_THREE_MAP,
-            db_table_name=self.yandex_visits_bd,
-            db_date_field=YANDEX_UPLOAD_TIME_PARTS['THREE'],
-            unique_selection='purchase_id, visit_id',
-        )
-        self._upload_dimensions(
-            dimensions=YANDEX_DIMENSIONS_FOUR_MAP,
+        self._upload_goals(
+            dimensions_parts=[
+                YANDEX_GOALS_DIMENSIONS_MAP,
+            ],
             db_table_name=self.yandex_goals_bd,
-            db_date_field=YANDEX_UPLOAD_TIME_PARTS['FOUR'],
+            metrics='ym:s:visits',
             fields_map=YANDEX_GOALS_TO_VISITS_FIELDS_MAP,
-            unique_selection='yandex_visit_id, goal',
-            need_indexing=False,
         )
 
         self._message('==YANDEX==')
 
-    def _upload_dimensions(
-            self,
-            dimensions,
-            db_table_name,
-            db_date_field,
-            metrics='ym:s:visits',
-            fields_map=None,
-            unique_selection=None,
-            need_indexing=True,
-    ):
-        dims = ', '.join(dimensions.keys())
-        self._message(f"Processing dimensions: {dims}")
-        self._upload(
-            yandex_id=YANDEX_CONFIG.get('yandex', 'yandex_id'),
-            sort="ym:s:visitID",
-            metrics=metrics,
-            token=YANDEX_CONFIG.get('yandex', 'token'),
-            dimensions=dimensions,
-            db_table_name=db_table_name,
-            db_date_field=db_date_field,
-            fields_map=fields_map,
-            unique_selection=unique_selection,
-            need_indexing=need_indexing,
-        )
-        self._message(f'Done processing dimensions: {dims}')
-
-    def _upload(
-            self,
-            yandex_id,
-            sort,
-            token,
-            dimensions,
-            metrics,
-            db_table_name,
-            db_date_field,
-            fields_map,
-            unique_selection,
-            need_indexing,
-    ):
-        """В связи с особенностями источника, грузим частями, которые затем объединяем."""
-
+    def _upload_visits( self, dimensions_parts,  db_table_name, metrics):
         today = datetime.datetime.now()
-        chunk = 10
         end = False
-        # На первой итерации возвращаемся на 10 дней назад, чтобы ничего не упустить.
-        starting_date = self._get_yandex_upload_starting_time(db_table_name, db_date_field) - datetime.timedelta(days=10)
-        self._message(f'\tUploading from yandex metrics, starting date: {starting_date}')
+
+        # Грузим сразу за месяц.
+        starting_date = self._get_yandex_upload_starting_time(db_table_name, 'upload_date')
+        starting_date = datetime.datetime(year=starting_date.year, month=starting_date.month, day=1)
+
+        self._message(f'\n\tUploading from yandex metrics, starting date: {starting_date}')
 
         url = "https://api-metrika.yandex.net/stat/v1/data"
 
-        headers = {
-            "Authorization": token
-        }
-        params = {
-            "metrics": metrics,
-            "dimensions": ','.join(dimensions.keys()),
-            "id": yandex_id,
-            "lang": "ru",
-            "accuracy": 1,
-            "sort": sort,
-            "limit": 100000,
-        }
+        headers = {"Authorization": YANDEX_CONFIG.get('yandex', 'token')}
 
         while True:
-            ending_date = starting_date + datetime.timedelta(days=chunk)
+            dfs = []
+            _, last_day = calendar.monthrange(starting_date.year, starting_date.month)
+            ending_date = datetime.datetime(year=starting_date.year, month=starting_date.month, day=last_day)
 
             if ending_date > today:
                 end = True
-                chunk = (today - starting_date).days
-                ending_date = starting_date + datetime.timedelta(days=chunk + 1)
 
             self._message(f'\tProcessing data from {starting_date} to {ending_date}')
 
-            params.update({
-                'date1': starting_date.strftime('%Y-%m-%d'),
-                'date2': ending_date.strftime('%Y-%m-%d'),
-            })
+            for dimensions in dimensions_parts:
+                params = {
+                    "metrics": metrics,
+                    "dimensions": ','.join(dimensions.keys()),
+                    "id": YANDEX_CONFIG.get('yandex', 'yandex_id'),
+                    "lang": "ru",
+                    "accuracy": 1,
+                    "sort": "ym:s:visitID",
+                    "limit": 100000,
+                }
 
-            request_params = {
-                'url': url,
-                'headers': headers,
-                'params': params,
-            }
+                params.update({
+                    'date1': starting_date.strftime('%Y-%m-%d'),
+                    'date2': ending_date.strftime('%Y-%m-%d'),
+                })
 
-            response = requests.get(**request_params)
+                request_params = {
+                    'url': url,
+                    'headers': headers,
+                    'params': params,
+                }
 
-            if response.status_code == 200:
-                data = response.json()['data']
+                response = requests.get(**request_params)
 
-                if data:
+                if response.status_code == 200:
+                    data = response.json()['data']
+
+                    db_info = [
+                        {
+                            db_name: dims[num]['name']
+                            for num, db_name in enumerate(list(dimensions.values()))
+                        }
+                        for info in data
+                        for dims in [info['dimensions']]
+                    ]
+
+                    df = pd.DataFrame(db_info)
+
+                    if not df.empty:
+                        dfs.append(df)
+                    else:
+                        self._message('\t\tNo data')
+                        break
+                else:
+                    self._error(f'ERROR while getting data, code {response.status_code}: {response.text}')
+                    break
+
+            if dfs:
+                combined_df = dfs[0]
+
+                for df in dfs[1:]:
+                    combined_df = pd.merge(combined_df, df, on='visit_id', how='inner')
+
+                combined_df['upload_date'] = ending_date
+
+                if not combined_df.empty:
+                    self._smart_flush(combined_df, db_table_name, ['visit_id'])
+
+            if end:
+                break
+
+            starting_date = ending_date + datetime.timedelta(days=1)
+
+    def _upload_purchases(self, dimensions_parts, db_table_name, metrics, fields_map):
+        today = datetime.datetime.now()
+        end = False
+
+        # Грузим сразу за месяц.
+        starting_date = self._get_yandex_upload_starting_time(db_table_name, 'upload_date')
+        starting_date = datetime.datetime(year=starting_date.year, month=starting_date.month, day=1)
+
+        self._message(f'\n\tUploading from yandex metrics, starting date: {starting_date}')
+
+        url = "https://api-metrika.yandex.net/stat/v1/data"
+
+        headers = {"Authorization": YANDEX_CONFIG.get('yandex', 'token')}
+
+        while True:
+            dfs = []
+            _, last_day = calendar.monthrange(starting_date.year, starting_date.month)
+            ending_date = datetime.datetime(year=starting_date.year, month=starting_date.month, day=last_day)
+
+            if ending_date > today:
+                end = True
+
+            self._message(f'\tProcessing data from {starting_date} to {ending_date}')
+
+            for dimensions in dimensions_parts:
+                params = {
+                    "metrics": metrics,
+                    "dimensions": ','.join(dimensions.keys()),
+                    "id": YANDEX_CONFIG.get('yandex', 'yandex_id'),
+                    "lang": "ru",
+                    "accuracy": 1,
+                    "sort": "ym:s:visitID",
+                    "limit": 100000,
+                }
+
+                params.update({
+                    'date1': starting_date.strftime('%Y-%m-%d'),
+                    'date2': ending_date.strftime('%Y-%m-%d'),
+                })
+
+                request_params = {
+                    'url': url,
+                    'headers': headers,
+                    'params': params,
+                }
+
+                response = requests.get(**request_params)
+
+                if response.status_code == 200:
+                    data = response.json()['data']
+
                     db_info = [
                         {
                             db_name: dims[num]['name']
@@ -165,13 +219,166 @@ class YandexUploader(BaseUploader):
                         db_info = self._manage_data(db_info, fields_map)
 
                     df = pd.DataFrame(db_info)
-                    self._smart_flush(df, db_table_name, ending_date, db_date_field, unique_selection, need_indexing)
+
+                    if not df.empty:
+                        dfs.append(df)
+                    else:
+                        self._message('\t\tNo data')
+                        break
                 else:
-                    self._message('\t\tNo data found')
+                    self._error(f'ERROR while getting data, code {response.status_code}: {response.text}')
+                    break
+
+            if dfs:
+                combined_df = dfs[0]
+
+                for df in dfs[1:]:
+                    combined_df = pd.merge(combined_df, df, on='visit_id', how='inner')
+
+                combined_df['upload_date'] = ending_date
+
+                if not combined_df.empty:
+                    self._smart_flush(combined_df, db_table_name, ['yandex_visit_id', 'purchase_id'])
+
             if end:
                 break
 
-            starting_date = ending_date + datetime.timedelta(days=chunk)
+            starting_date = ending_date + datetime.timedelta(days=1)
+
+    def _upload_goals(self, dimensions_parts, db_table_name, metrics, fields_map):
+        today = datetime.datetime.now()
+        end = False
+
+        # Грузим сразу за месяц.
+        starting_date = self._get_yandex_upload_starting_time(db_table_name, 'upload_date')
+        starting_date = datetime.datetime(year=starting_date.year, month=starting_date.month, day=1)
+
+        self._message(f'\n\tUploading from yandex metrics, starting date: {starting_date}')
+
+        url = "https://api-metrika.yandex.net/stat/v1/data"
+
+        headers = {"Authorization": YANDEX_CONFIG.get('yandex', 'token')}
+
+        while True:
+            dfs = []
+            _, last_day = calendar.monthrange(starting_date.year, starting_date.month)
+            ending_date = datetime.datetime(year=starting_date.year, month=starting_date.month, day=last_day)
+
+            if ending_date > today:
+                end = True
+
+            self._message(f'\tProcessing data from {starting_date} to {ending_date}')
+
+            for dimensions in dimensions_parts:
+                params = {
+                    "metrics": metrics,
+                    "dimensions": ','.join(dimensions.keys()),
+                    "id": YANDEX_CONFIG.get('yandex', 'yandex_id'),
+                    "lang": "ru",
+                    "accuracy": 1,
+                    "sort": "ym:s:visitID",
+                    "limit": 100000,
+                }
+
+                params.update({
+                    'date1': starting_date.strftime('%Y-%m-%d'),
+                    'date2': ending_date.strftime('%Y-%m-%d'),
+                })
+
+                request_params = {
+                    'url': url,
+                    'headers': headers,
+                    'params': params,
+                }
+
+                response = requests.get(**request_params)
+
+                if response.status_code == 200:
+                    data = response.json()['data']
+
+                    db_info = [
+                        {
+                            db_name: dims[num]['name']
+                            for num, db_name in enumerate(list(dimensions.values()))
+                        }
+                        for info in data
+                        for dims in [info['dimensions']]
+                    ]
+
+                    if fields_map:
+                        db_info = self._manage_data(db_info, fields_map)
+
+                    df = pd.DataFrame(db_info)
+
+                    if not df.empty:
+                        dfs.append(df)
+                    else:
+                        self._message('\t\tNo data')
+                        break
+                else:
+                    self._error(f'ERROR while getting data, code {response.status_code}: {response.text}')
+                    break
+
+            if dfs:
+                combined_df = dfs[0]
+
+                for df in dfs[1:]:
+                    combined_df = pd.merge(combined_df, df, on='visit_id', how='inner')
+
+                combined_df['upload_date'] = ending_date
+                combined_df.dropna(inplace=True)
+
+                if not combined_df.empty:
+                    self._smart_flush(combined_df, db_table_name, ['yandex_visit_id', 'goal'])
+
+            if end:
+                break
+
+            starting_date = ending_date + datetime.timedelta(days=1)
+
+    def _smart_flush(self, df, db_table_name, unique_rows):
+        metadata = MetaData()
+        table = Table(db_table_name, metadata, autoload_with=self.engine)
+
+        batch_size = 5000
+        batches = [df[i:i + batch_size] for i in range(0, len(df), batch_size)]
+
+        updated_count = created_count = 0
+
+        for batch in batches:
+            records = tuple([row.to_dict() for _, row in batch.iterrows()])
+
+            unique_values = tuple((tuple(row[key] for key in unique_rows) for row in records))
+
+            if len(unique_rows) == 1:
+                unique_values = tuple(zip(*unique_values))[0]
+
+            rows_to_update = self._get_count_query(db_table_name, ', '.join(unique_rows), unique_values)
+            updated_count += rows_to_update
+            created_count += len(records) - rows_to_update
+
+            statement = insert(table).values(records)
+            upsert_statement = statement.on_conflict_do_update(
+                index_elements=unique_rows,
+                set_={
+                    col: getattr(statement.excluded, col)
+                    for col in table.columns.keys()
+                    if col not in ['id']
+                },
+            )
+
+            compiled_statement = upsert_statement.compile(compile_kwargs={"literal_binds": False})
+            sql_query = str(compiled_statement)  # SQL-запрос
+            params = compiled_statement.params  # Параметры
+
+            self.cursor.execute(sql_query, params)
+            self.connection.commit()
+
+        self._message(f'\t\tproceeded {len(df)} rows:')
+        self._message(
+            f'\t\t existing rows: {updated_count} (updated, if needed); '
+            f'created: {created_count}, in table {db_table_name}'
+        )
 
     def _manage_data(self, db_info, fields_map):
         """Ищем записи, на которые ссылаются полученные данные. Если нашли несколько записей, клонируем данные так, чтобы связать с каждой."""
@@ -216,93 +423,14 @@ class YandexUploader(BaseUploader):
 
         return result if result else datetime.datetime(2023, 1, 1)
 
-    def _smart_flush(self, df, table, ending_date, db_date_field, unique_selection, need_indexing=True):
-        """Обновляем существующие/создаем новые."""
+    def _get_count_query(self, table, field, records):
+        self.cursor.execute(f"""
+            SELECT COUNT(*) FROM {table}
+            WHERE ({field}) in {records}
+        """)
+        fetch = self.cursor.fetchone()
 
-        for date_field in self.date_fields:
-            if date_field in df:
-                df.loc[:, date_field] = pd.to_datetime(df[date_field], format='mixed', dayfirst=True)
-
-        unique_selection_split = unique_selection.split(', ')
-        columns_to_flush = (
-            [col for col in df.columns if col not in unique_selection_split]
-            if need_indexing
-            else df.columns.to_list()
-        )
-
-        query = self._get_old_records_query(table, df, unique_selection)
-        db_df = pd.read_sql(query, self.engine)
-        db_df.drop(
-            columns=[
-                'id',
-                *[col for col in YANDEX_UPLOAD_TIME_PARTS.values() if col != db_date_field and col in db_df],
-            ],
-            axis=1,
-            inplace=True,
-        )
-
-        # Устанавливаем unique_id как индекс для обоих df - если требуется
-        if need_indexing:
-            df.set_index(unique_selection_split, inplace=True)
-            db_df.set_index(unique_selection_split, inplace=True)
-
-        rows_from_db = set(tuple(row) for row in db_df[columns_to_flush].iloc)
-        rows_from_api = set(tuple(row) for row in df[columns_to_flush].iloc)
-        rows_to_update = len(rows_from_db - rows_from_api)
-
-        if rows_to_update > 0:
-            # Обновляем то, что есть
-            db_df.update(df)
-
-        # И создаем новые
-        new_rows = df.loc[~df.index.isin(db_df.index)].reindex(columns=db_df.columns, fill_value=None)
-        rows_to_create = len(new_rows)
-
-        if not new_rows.empty:
-            db_df = pd.concat([db_df, new_rows]) if not db_df.empty else new_rows
-
-        if rows_to_create or rows_to_update:
-            db_df.reset_index(inplace=True)
-            db_df[db_date_field] = ending_date
-            db_df = db_df.where(pd.notnull(db_df), None)
-
-            if 'index' in db_df:
-                db_df.drop(['index'], axis=1, inplace=True)
-
-            data = [tuple(row) for row in db_df.to_numpy()]
-            # Cобираем колонки для апдейтов
-            columns = [col for col in db_df.columns.tolist()]
-            update_clause = ', '.join([f"{col} = EXCLUDED.{col}" for col in columns])
-            columns = ', '.join(columns)
-
-            # SQL-запрос для UPSERT
-            upsert_query = self._get_upsert_query(table, columns, update_clause, unique_selection)
-
-            execute_values(self.cursor, upsert_query, data)
-            self.connection.commit()
-
-        self._message(f'{len(df)} records proceeded. {rows_to_create} created, {rows_to_update} updated.')
-
-    @staticmethod
-    def _get_old_records_query(table, df, unique_selection):
-        keys = unique_selection.split(', ')
-        selections = tuple(zip(*(df[key].fillna("") for key in keys)))
-
-        return f"""
-            SELECT *
-            FROM {table}
-            WHERE ({unique_selection}) IN {selections}
-        """
-
-    @staticmethod
-    def _get_upsert_query(table, columns, update_clause, unique_selection):
-        return f"""
-            INSERT INTO {table} ({columns})
-            VALUES %s
-            ON CONFLICT ({unique_selection})
-            DO UPDATE SET
-                {update_clause};
-        """
+        return fetch[0]
 
     def _get_fields_map_values(self, field_to, values_to_map, table):
         self.cursor.execute(f"""
