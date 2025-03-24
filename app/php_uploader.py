@@ -2,6 +2,8 @@ import requests
 import datetime
 from uploader import BaseUploader
 import configparser
+import calendar
+from dateutil.relativedelta import relativedelta
 
 
 PHP_CONFIG_PATH = 'configs/php.conf'
@@ -30,7 +32,6 @@ class PHPUploader(BaseUploader):
 
     def _upload(self, endpoint, key, db_table_name):
         today = datetime.datetime.now()
-        chunk = 10
         end = False
         self._message(f'Starting uploading from {endpoint}.')
 
@@ -43,12 +44,14 @@ class PHPUploader(BaseUploader):
             "Key": key,
         }
 
-        # На первой итерации возвращаемся на 10 дней назад, чтобы ничего не упустить.
-        starting_date = self._get_php_upload_starting_time(db_table_name) - datetime.timedelta(days=10)
+        # Грузим с первого дня...
+        starting_date = self._get_php_upload_starting_time(db_table_name).replace(day=1)
         self._message(f'Started uploading from {endpoint}, starting date: {starting_date}')
 
         while True:
-            ending_date = starting_date + datetime.timedelta(days=chunk)
+            # ...весь месяц.
+            _, last_day = calendar.monthrange(starting_date.year, starting_date.month)
+            ending_date = starting_date.replace(day=last_day)
             self._message(f'Processing {endpoint}, from {starting_date} to {ending_date}:')
 
             if ending_date > today:
@@ -87,7 +90,7 @@ class PHPUploader(BaseUploader):
             if end:
                 break
 
-            starting_date = ending_date + datetime.timedelta(days=chunk)
+            starting_date = starting_date + relativedelta(months=1)
 
         self._message(f'Ended uploading {endpoint}.')
 
