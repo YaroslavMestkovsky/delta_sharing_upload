@@ -39,3 +39,5 @@ docker tag delta_sharing_upload-app:latest yaroslavmd/delta_sharing_upload:lates
 ```
 docker push yaroslavmd/delta_sharing_upload:latest
 ```
+
+if (docker ps -a --filter "name=app" --format "{{.ID}}" | Select-String .) { docker stop app 2>$null; docker rm app 2>$null }; docker images --filter=reference="yaroslavmd/delta_sharing_upload" --format "{{.ID}}" | ForEach-Object { docker rmi -f $_ } 2>$null; docker run --name app -v "$PWD\upload.log:/upload.log" -v "$PWD\configs:/app/configs" yaroslavmd/delta_sharing_upload:latest

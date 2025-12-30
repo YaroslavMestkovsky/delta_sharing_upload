@@ -97,51 +97,50 @@ def init_db():
     #     """
     # )
 
-    # cursor.execute(
-    #     """
-    #     CREATE TABLE df_yandex_visits (
-    #         id SERIAL PRIMARY KEY,
-    #         visit_id TEXT UNIQUE,
-    #         client_id TEXT,
-    #         traffic_source TEXT,
-    #         last_search_engine TEXT,
-    #         utm_source TEXT,
-    #         utm_medium TEXT,
-    #         utm_campaign TEXT,
-    #         utm_content TEXT,
-    #         utm_term TEXT,
-    #         device_category TEXT,
-    #         referal_source TEXT,
-    #         date_time TIMESTAMP,
-    #         upload_date TIMESTAMP
-    #     )
-    #     """
-    # )
+    cursor.execute(
+        """
+        CREATE TABLE df_yandex_visits (
+            id SERIAL PRIMARY KEY,
+            visit_id TEXT UNIQUE,
+            client_id TEXT,
+            traffic_source TEXT,
+            last_search_engine TEXT,
+            utm_source TEXT,
+            utm_medium TEXT,
+            utm_campaign TEXT,
+            utm_content TEXT,
+            utm_term TEXT,
+            device_category TEXT,
+            referal_source TEXT,
+            date_time TIMESTAMP,
+            upload_date TIMESTAMP
+        )
+        """
+    )
 
-    # cursor.execute(
-    #     """
-    #     CREATE TABLE df_yandex_purchases (
-    #         id SERIAL PRIMARY KEY,
-    #         purchase_id TEXT,
-    #         yandex_visit_id INTEGER REFERENCES df_yandex_visits(id),
-    #         purchase_revenue TEXT,
-    #         upload_date TIMESTAMP,
-    #         UNIQUE (yandex_visit_id, purchase_id)
-    #     )
-    #     """
-    # )
-    #
-    # cursor.execute(
-    #     """
-    #     CREATE TABLE df_yandex_goals (
-    #         id SERIAL PRIMARY KEY,
-    #         yandex_visit_id INTEGER REFERENCES df_yandex_visits(id),
-    #         goal TEXT,
-    #         upload_date TIMESTAMP,
-    #         UNIQUE (yandex_visit_id, goal)
-    #     )
-    #     """
-    # )
+    cursor.execute(
+        """
+        CREATE TABLE df_yandex_purchases (
+            id SERIAL PRIMARY KEY,
+            purchase_id TEXT,
+            yandex_visit_id INTEGER REFERENCES df_yandex_visits(id),
+            purchase_revenue TEXT,
+            upload_date TIMESTAMP,
+            UNIQUE (yandex_visit_id, purchase_id)
+        )
+        """
+    )
+
+    cursor.execute(
+        """
+        CREATE TABLE df_yandex_goals (
+            id SERIAL PRIMARY KEY,
+            yandex_visit_id INTEGER REFERENCES df_yandex_visits(id),
+            goal TEXT,
+            upload_date TIMESTAMP
+        )
+        """
+    )
 
     # cursor.execute(
     #     """

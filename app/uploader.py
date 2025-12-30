@@ -13,7 +13,7 @@ class BaseUploader:
 
     def __init__(self, *args, **kwargs):
         logging.basicConfig(
-            filename='../upload.log',
+            #filename='../upload.log',
             level=logging.INFO,
             format='%(levelname)s - %(message)s'
         )

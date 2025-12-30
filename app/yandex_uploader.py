@@ -249,9 +249,12 @@ class YandexUploader(BaseUploader):
         today = datetime.datetime.now()
         end = False
 
-        # Грузим сразу за месяц.
-        starting_date = self._get_yandex_upload_starting_time(db_table_name, 'upload_date')
-        starting_date = datetime.datetime(year=starting_date.year, month=starting_date.month, day=1)
+        # Грузим сразу за месяц, но начиная со следующего дня от последней загруженной даты, тк именно цели не можем проверить на уникальность.
+        starting_date = self._get_yandex_upload_starting_time(db_table_name, 'upload_date') + datetime.timedelta(days=1)
+
+        if starting_date > today:
+            self._message(f'All ready uploaded newest data for date: {starting_date - datetime.timedelta(days=1)}')
+            return
 
         self._message(f'\n\tUploading from yandex metrics, starting date: {starting_date}')
 
@@ -329,14 +332,14 @@ class YandexUploader(BaseUploader):
                 combined_df.dropna(inplace=True)
 
                 if not combined_df.empty:
-                    self._smart_flush(combined_df, db_table_name, ['yandex_visit_id', 'goal'])
+                    self._smart_flush(combined_df, db_table_name)
 
             if end:
                 break
 
             starting_date = ending_date + datetime.timedelta(days=1)
 
-    def _smart_flush(self, df, db_table_name, unique_rows):
+    def _smart_flush(self, df, db_table_name, unique_rows=None):
         metadata = MetaData()
         table = Table(db_table_name, metadata, autoload_with=self.engine)
 
@@ -347,25 +350,38 @@ class YandexUploader(BaseUploader):
 
         for batch in batches:
             records = tuple([row.to_dict() for _, row in batch.iterrows()])
-
-            unique_values = tuple((tuple(row[key] for key in unique_rows) for row in records))
-
-            if len(unique_rows) == 1:
-                unique_values = tuple(zip(*unique_values))[0]
-
-            rows_to_update = self._get_count_query(db_table_name, ', '.join(unique_rows), unique_values)
-            updated_count += rows_to_update
-            created_count += len(records) - rows_to_update
-
+            updated_count = 0
+            created_count = 0
             statement = insert(table).values(records)
-            upsert_statement = statement.on_conflict_do_update(
-                index_elements=unique_rows,
-                set_={
-                    col: getattr(statement.excluded, col)
-                    for col in table.columns.keys()
-                    if col not in ['id']
-                },
-            )
+
+            if unique_rows:
+                unique_values = tuple((tuple(row[key] for key in unique_rows) for row in records))
+
+                if len(unique_rows) == 1:
+                    unique_values = tuple(zip(*unique_values))[0]
+
+                rows_to_update = self._get_count_query(db_table_name, ', '.join(unique_rows), unique_values)
+                updated_count += rows_to_update
+                created_count += len(records) - rows_to_update
+
+                upsert_statement = statement.on_conflict_do_update(
+                    index_elements=unique_rows,
+                    set_={
+                        col: getattr(statement.excluded, col)
+                        for col in table.columns.keys()
+                        if col not in ['id']
+                    },
+                )
+            else:
+                created_count += len(records)
+                upsert_statement = statement.on_conflict_do_update(
+                    index_elements=['id'],
+                    set_={
+                        col: getattr(statement.excluded, col)
+                        for col in table.columns.keys()
+                        if col not in ['id']
+                    },
+                )
 
             compiled_statement = upsert_statement.compile(compile_kwargs={"literal_binds": False})
             sql_query = str(compiled_statement)  # SQL-запрос

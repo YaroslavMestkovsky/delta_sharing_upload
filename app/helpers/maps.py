@@ -74,19 +74,19 @@ YANDEX_VISITS_DIMENSIONS_FIRST_MAP = {
     'ym:s:visitID': 'visit_id',
     'ym:s:clientID': 'client_id',
     'ym:s:dateTime': 'date_time',
-    'ym:s:TrafficSource': 'traffic_source',
-    'ym:s:lastSearchEngine': 'last_search_engine',
-    'ym:s:UTMSource': 'utm_source',
-    'ym:s:UTMMedium': 'utm_medium',
+    'ym:s:cross_device_last_significantTrafficSource': 'traffic_source',
+    'ym:s:cross_device_last_significantSearchEngine': 'last_search_engine',
+    'ym:s:cross_device_last_significantUTMSource': 'utm_source',
+    'ym:s:cross_device_last_significantUTMCampaign': 'utm_medium',
     'ym:s:UTMCampaign': 'utm_campaign',
-    'ym:s:UTMContent': 'utm_content',
-    'ym:s:UTMTerm': 'utm_term',
+    'ym:s:cross_device_last_significantUTMContent': 'utm_content',
+    'ym:s:cross_device_last_significantUTMTerm': 'utm_term',
 }
 
 YANDEX_VISITS_DIMENSIONS_SECOND_MAP = {
     'ym:s:visitID': 'visit_id',
     'ym:s:deviceCategory': 'device_category',
-    'ym:s:ReferalSource': 'referal_source',
+    'ym:s:cross_device_last_significantReferalSource': 'referal_source',
 }
 
 YANDEX_PURCHASE_DIMENSIONS_MAP = {

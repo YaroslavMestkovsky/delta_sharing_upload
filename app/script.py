@@ -3,7 +3,7 @@ from mindbox_uploader import MindboxUploader
 from yandex_uploader import YandexUploader
 
 
-if __name__ == '__main__':
+def main():
     # delta_sharing_uploader = DeltaSharingUploader()
     # delta_sharing_uploader.run()
     # delta_sharing_uploader.close_connections()
@@ -19,3 +19,7 @@ if __name__ == '__main__':
     php_uploader = PHPUploader()
     php_uploader.run()
     php_uploader.close_connections()
+
+
+if __name__ == '__main__':
+     main()
